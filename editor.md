@@ -6,29 +6,6 @@ title: 写文章
 <div class="editor-page">
   <h1 class="page-title">写文章</h1>
 
-  <!-- 设置区域 -->
-  <div class="editor-section">
-    <details id="settings-toggle">
-      <summary>⚙️ 设置（GitHub Token）</summary>
-      <div class="settings-body">
-        <p class="settings-hint">
-          需要 GitHub Personal Access Token 才能发布文章。
-          <a href="https://github.com/settings/tokens/new?scopes=repo&description=Blog+Editor" target="_blank" rel="noopener">
-            点击这里创建 Token →
-          </a>
-          勾选 <strong>repo</strong> 权限，生成后粘贴到下方。
-          Token 仅保存在你的浏览器本地。
-        </p>
-        <div class="input-row">
-          <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxx" autocomplete="off">
-          <button id="save-token" class="btn btn-secondary">保存</button>
-          <button id="clear-token" class="btn btn-ghost">清除</button>
-        </div>
-        <p id="token-status" class="token-status"></p>
-      </div>
-    </details>
-  </div>
-
   <!-- 文章信息 -->
   <div class="editor-section">
     <div class="input-row">

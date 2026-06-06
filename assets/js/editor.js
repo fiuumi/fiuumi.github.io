@@ -12,12 +12,6 @@
   const BRANCH = 'main';
 
   // ── DOM 引用 ──────────────────────────────
-  const tokenInput = document.getElementById('gh-token');
-  const saveTokenBtn = document.getElementById('save-token');
-  const clearTokenBtn = document.getElementById('clear-token');
-  const tokenStatus = document.getElementById('token-status');
-  const settingsToggle = document.getElementById('settings-toggle');
-
   const titleInput = document.getElementById('post-title');
   const dateInput = document.getElementById('post-date');
   const tagsInput = document.getElementById('post-tags');
@@ -35,47 +29,23 @@
     dateInput.value = yyyy + '-' + mm + '-' + dd;
   }
 
-  // ── Token 管理 ──────────────────────────────
+  // ── Token 管理（从 URL 参数注入）────────────
   function getToken() {
-    return localStorage.getItem(TOKEN_KEY);
+    var stored = localStorage.getItem(TOKEN_KEY);
+    if (stored) return stored;
+    // 尝试从 URL 参数 ?token=xxx 读取
+    var params = new URLSearchParams(window.location.search);
+    var urlToken = params.get('token');
+    if (urlToken) {
+      localStorage.setItem(TOKEN_KEY, urlToken);
+      // 清除 URL 中的 token 参数，避免泄露
+      var cleanUrl = window.location.origin + window.location.pathname;
+      window.history.replaceState({}, '', cleanUrl);
+      showStatus('✅ Token 已保存，开始写作吧', 'info');
+      return urlToken;
+    }
+    return null;
   }
-
-  function updateTokenUI() {
-    const token = getToken();
-    if (token) {
-      tokenInput.value = token;
-      tokenStatus.textContent = '✅ Token 已保存';
-      tokenStatus.className = 'token-status success';
-      if (settingsToggle) settingsToggle.open = false;
-    } else {
-      tokenInput.value = '';
-      tokenStatus.textContent = '⚠️ 尚未配置 Token，无法发布';
-      tokenStatus.className = 'token-status warning';
-      if (settingsToggle) settingsToggle.open = true;
-    }
-  }
-
-  updateTokenUI();
-
-  saveTokenBtn.addEventListener('click', function () {
-    const val = tokenInput.value.trim();
-    if (!val) {
-      tokenStatus.textContent = '❌ Token 不能为空';
-      tokenStatus.className = 'token-status error';
-      return;
-    }
-    if (!val.startsWith('ghp_') && !val.startsWith('github_pat_')) {
-      tokenStatus.textContent = '⚠️ Token 格式看起来不对（应以 ghp_ 或 github_pat_ 开头）';
-      tokenStatus.className = 'token-status warning';
-    }
-    localStorage.setItem(TOKEN_KEY, val);
-    updateTokenUI();
-  });
-
-  clearTokenBtn.addEventListener('click', function () {
-    localStorage.removeItem(TOKEN_KEY);
-    updateTokenUI();
-  });
 
   // ── EasyMDE ────────────────────────────────
   const easyMDE = new EasyMDE({
@@ -263,9 +233,9 @@
     }
   });
 
-  // ── 首次使用提示 ──────────────────────────────
+  // ── Token 检查 ──────────────────────────────
   if (!getToken()) {
-    showStatus('💡 请先点击上方「设置」配置 GitHub Token', 'info');
+    showStatus('💡 首次使用请通过 <code>?token=你的token</code> 参数访问此页面来激活（仅需一次）', 'info');
   }
 
 })();
