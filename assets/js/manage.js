@@ -1,271 +1,233 @@
 /* ============================================
    FiuuMi's Blog — 文章管理
-   搜索 · 编辑元信息 · 删除
+   搜索 · 编辑 · 删除
    ============================================ */
 
 (function () {
   'use strict';
 
-  const TOKEN_KEY = 'blog-gh-token';
-  const REPO_OWNER = 'fiuumi';
-  const REPO_NAME = 'fiuumi.github.io';
-  const BRANCH = 'main';
+  var TOKEN_KEY = 'blog-gh-token';
+  var REPO_OWNER = 'fiuumi';
+  var REPO_NAME = 'fiuumi.github.io';
+  var BRANCH = 'main';
 
-  // ── DOM 引用 ──────────────────────────────
-  const filterKeyword = document.getElementById('filter-keyword');
-  const filterTag = document.getElementById('filter-tag');
-  const filterDateFrom = document.getElementById('filter-date-from');
-  const filterDateTo = document.getElementById('filter-date-to');
-  const btnRefresh = document.getElementById('btn-refresh');
-  const manageCount = document.getElementById('manage-count');
-  const manageLoading = document.getElementById('manage-loading');
-  const manageError = document.getElementById('manage-error');
-  const manageList = document.getElementById('manage-list');
-  const manageTbody = document.getElementById('manage-tbody');
-  const manageEmpty = document.getElementById('manage-empty');
+  // ── DOM ───────────────────────────────────
+  var filterKeyword = document.getElementById('filter-keyword');
+  var filterTag = document.getElementById('filter-tag');
+  var filterDateFrom = document.getElementById('filter-date-from');
+  var filterDateTo = document.getElementById('filter-date-to');
+  var btnRefresh = document.getElementById('btn-refresh');
+  var manageCount = document.getElementById('manage-count');
+  var manageLoading = document.getElementById('manage-loading');
+  var manageError = document.getElementById('manage-error');
+  var manageList = document.getElementById('manage-list');
+  var manageTbody = document.getElementById('manage-tbody');
+  var manageEmpty = document.getElementById('manage-empty');
+  var deleteModal = document.getElementById('delete-modal');
+  var deleteTitle = document.getElementById('delete-title');
+  var btnConfirmDelete = document.getElementById('btn-confirm-delete');
+  var btnCancelDelete = document.getElementById('btn-cancel-delete');
+  var deleteStatus = document.getElementById('delete-status');
 
-  // 删除模态框
-  const deleteModal = document.getElementById('delete-modal');
-  const deleteTitle = document.getElementById('delete-title');
-  const btnConfirmDelete = document.getElementById('btn-confirm-delete');
-  const btnCancelDelete = document.getElementById('btn-cancel-delete');
-  const deleteStatus = document.getElementById('delete-status');
-
-  // 编辑模态框
-  const editModal = document.getElementById('edit-modal');
-  const editTitle = document.getElementById('edit-title');
-  const editTags = document.getElementById('edit-tags');
-  const btnSaveMeta = document.getElementById('btn-save-meta');
-  const btnCancelEdit = document.getElementById('btn-cancel-edit');
-  const editStatusEl = document.getElementById('edit-status');
-
-  // ── 状态 ──────────────────────────────────
   var allPosts = [];
   var currentDelete = null;
-  var currentEdit = null;
 
-  // ── Token ──────────────────────────────────
+  // ── Token ─────────────────────────────────
   function getToken() {
-    var stored = localStorage.getItem(TOKEN_KEY);
-    if (stored) return stored;
-    var params = new URLSearchParams(window.location.search);
-    var urlToken = params.get('token');
-    if (urlToken) {
-      localStorage.setItem(TOKEN_KEY, urlToken);
-      var cleanUrl = window.location.origin + window.location.pathname;
-      window.history.replaceState({}, '', cleanUrl);
-      return urlToken;
+    var s = localStorage.getItem(TOKEN_KEY);
+    if (s) return s;
+    var p = new URLSearchParams(window.location.search);
+    var t = p.get('token');
+    if (t) {
+      localStorage.setItem(TOKEN_KEY, t);
+      window.history.replaceState({}, '', window.location.origin + window.location.pathname);
+      return t;
     }
     return null;
   }
 
-  // ── API 请求封装 ──────────────────────────
-  function apiRequest(url, options) {
+  // ── API ───────────────────────────────────
+  function api(url, opts) {
     var token = getToken();
-    if (!token) {
-      showError('未配置 Token，请先通过 <code>?token=xxx</code> 参数访问');
-      return Promise.reject(new Error('No token'));
-    }
-    options = options || {};
-    options.headers = options.headers || {};
-    options.headers['Authorization'] = 'token ' + token;
-    options.headers['Accept'] = 'application/vnd.github.v3+json';
-    return fetch(url, options).then(function (res) {
-      return res.json().then(function (data) {
-        return { status: res.status, data: data };
-      });
+    if (!token) return Promise.reject(new Error('NO_TOKEN'));
+    opts = opts || {};
+    opts.headers = opts.headers || {};
+    opts.headers['Authorization'] = 'token ' + token;
+    opts.headers['Accept'] = 'application/vnd.github.v3+json';
+    return fetch(url, opts).then(function (r) {
+      return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; });
     });
   }
 
-  // ── 加载文章列表 ──────────────────────────
-  function loadPosts() {
+  function b64decode(s) {
+    try { return decodeURIComponent(escape(atob(s.replace(/\s/g, '')))); }
+    catch (e) { return atob(s.replace(/\s/g, '')); }
+  }
+
+  // ── Front Matter 解析 ────────────────────
+  function parseFM(raw) {
+    var m = raw.match(/^---\s*\n([\s\S]*?)\n---/);
+    if (!m) return {};
+    var fm = {};
+    var lines = m[1].split('\n');
+    var inTags = false, tagBuf = [];
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      // 多行 tags
+      if (inTags) {
+        var tm = line.match(/^\s*-[ ]*(.+)/);
+        if (tm) { tagBuf.push(tm[1].trim()); continue; }
+        else { inTags = false; fm.tags = tagBuf; }
+      }
+      var kv = line.match(/^(\w+):\s*(.*)$/);
+      if (!kv) continue;
+      var key = kv[1], val = kv[2].trim();
+      if (key === 'tags') {
+        // 支持 ['a','b'] 或 [a, b] 或 "a, b" 等格式
+        val = val.replace(/^["']|["']$/g, '');
+        if (val.startsWith('[')) {
+          fm.tags = val.replace(/[\[\]'"]/g, '').split(/[,，]/).map(function(t){return t.trim();}).filter(Boolean);
+        } else if (val) {
+          // 单值 tags: tag1
+          fm.tags = [val];
+        } else {
+          inTags = true; tagBuf = [];
+        }
+      } else {
+        fm[key] = val.replace(/^["']|["']$/g, '');
+      }
+    }
+    return fm;
+  }
+
+  function fileDate(name) {
+    var m = name.match(/^(\d{4}-\d{2}-\d{2})-/);
+    return m ? m[1] : '';
+  }
+
+  // ── 加载 ──────────────────────────────────
+  function load() {
+    if (!manageLoading || !manageError || !manageList) return;
     manageLoading.style.display = 'block';
     manageError.style.display = 'none';
     manageList.style.display = 'none';
 
-    var url = 'https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME + '/contents/_posts?ref=' + BRANCH;
+    var token = getToken();
+    if (!token) {
+      manageLoading.style.display = 'none';
+      showErr('未配置 Token。<br>请通过 <code>?token=你的token</code> 参数访问此页面来激活（仅需一次）。');
+      return;
+    }
 
-    apiRequest(url)
-      .then(function (result) {
-        if (result.status === 200) {
-          // 并行获取所有文件的 Front Matter
-          var fetches = result.data.map(function (file) {
-            return apiRequest(file.url + '?ref=' + BRANCH).then(function (r) {
-              if (r.status === 200) {
-                var content = decodeBase64(r.data.content);
-                var fm = parseFrontMatter(content);
-                return {
-                  name: file.name,
-                  path: file.path,
-                  sha: r.data.sha,
-                  rawUrl: r.data.download_url,
-                  title: fm.title || file.name.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/\.md$/, ''),
-                  date: parseDate(file.name),
-                  tags: fm.tags || [],
-                  content: content
-                };
-              }
-              return null;
-            }).catch(function () { return null; });
-          });
+    api('https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME + '/contents/_posts?ref=' + BRANCH)
+      .then(function (r) {
+        if (r.status === 404) { allPosts = []; render(); return; }
+        if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + (r.data.message || '未知'));
 
-          return Promise.all(fetches).then(function (posts) {
-            allPosts = posts.filter(function (p) { return p !== null; });
-            allPosts.sort(function (a, b) { return b.date.localeCompare(a.date); });
-            populateTagFilter();
-            renderPosts();
-          });
-        } else if (result.status === 404) {
-          allPosts = [];
-          renderPosts();
-        } else {
-          throw new Error('HTTP ' + result.status + ': ' + (result.data.message || '未知错误'));
-        }
+        var jobs = r.data.map(function (f) {
+          return api(f.url + '?ref=' + BRANCH).then(function (fr) {
+            if (!fr.ok) return null;
+            var raw = b64decode(fr.data.content);
+            var fm = parseFM(raw);
+            return {
+              name: f.name, path: f.path, sha: fr.data.sha,
+              title: fm.title || f.name.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/\.md$/, ''),
+              date: fileDate(f.name),
+              tags: fm.tags || [],
+              content: raw
+            };
+          }).catch(function () { return null; });
+        });
+
+        return Promise.all(jobs).then(function (posts) {
+          allPosts = posts.filter(Boolean);
+          allPosts.sort(function (a, b) { return b.date.localeCompare(a.date); });
+          fillTags();
+          render();
+        });
       })
       .catch(function (err) {
-        showError('加载失败：' + err.message);
+        if (err.message === 'NO_TOKEN') { showErr('未配置 Token。'); return; }
+        showErr('加载失败：' + err.message + '<br>请检查 Token 是否有效，或刷新重试。');
       })
-      .finally(function () {
-        manageLoading.style.display = 'none';
-      });
+      .finally(function () { manageLoading.style.display = 'none'; });
   }
 
-  // ── 解析 Front Matter ──────────────────────
-  function parseFrontMatter(content) {
-    var match = content.match(/^---\s*\n([\s\S]*?)\n---/);
-    if (!match) return {};
-    var fm = {};
-    var lines = match[1].split('\n');
-    var inTags = false;
-    var tagsArr = [];
-    lines.forEach(function (line) {
-      if (inTags) {
-        var tagMatch = line.match(/^\s*-\s*(.+)/);
-        if (tagMatch) {
-          tagsArr.push(tagMatch[1].trim());
-          return;
-        } else {
-          inTags = false;
-          fm.tags = tagsArr;
-        }
-      }
-      var kvMatch = line.match(/^(\w+):\s*(.+)$/);
-      if (kvMatch) {
-        var key = kvMatch[1];
-        var val = kvMatch[2].trim().replace(/^["']|["']$/g, '');
-        if (key === 'tags') {
-          if (val.startsWith('[')) {
-            // tags: [tag1, tag2]
-            fm.tags = val.replace(/[\[\]]/g, '').split(',').map(function (t) { return t.trim(); });
-          } else {
-            inTags = true;
-            tagsArr = [];
-          }
-        } else {
-          fm[key] = val;
-        }
-      }
-    });
-    return fm;
-  }
-
-  // ── 从文件名解析日期 ────────────────────────
-  function parseDate(filename) {
-    var match = filename.match(/^(\d{4}-\d{2}-\d{2})-/);
-    return match ? match[1] : '';
-  }
-
-  // ── Base64 解码 ────────────────────────────
-  function decodeBase64(str) {
-    try {
-      return decodeURIComponent(escape(atob(str.replace(/\s/g, ''))));
-    } catch (e) {
-      return atob(str.replace(/\s/g, ''));
-    }
-  }
-
-  // ── 填充标签筛选下拉 ────────────────────────
-  function populateTagFilter() {
-    var tagSet = {};
-    allPosts.forEach(function (post) {
-      (post.tags || []).forEach(function (t) { tagSet[t] = true; });
-    });
-    var currentVal = filterTag.value;
+  // ── 标签下拉 ──────────────────────────────
+  function fillTags() {
+    var set = {};
+    allPosts.forEach(function (p) { (p.tags||[]).forEach(function (t) { set[t]=true; }); });
+    var cur = filterTag.value;
     filterTag.innerHTML = '<option value="">全部标签</option>';
-    Object.keys(tagSet).sort().forEach(function (t) {
-      filterTag.innerHTML += '<option value="' + escapeHtml(t) + '">' + escapeHtml(t) + '</option>';
+    Object.keys(set).sort().forEach(function (t) {
+      filterTag.innerHTML += '<option value="' + esc(t) + '">' + esc(t) + '</option>';
     });
-    filterTag.value = currentVal;
+    filterTag.value = cur;
   }
 
-  // ── 筛选与渲染 ─────────────────────────────
-  function getFilteredPosts() {
-    var keyword = filterKeyword.value.trim().toLowerCase();
-    var tag = filterTag.value;
-    var dateFrom = filterDateFrom.value;
-    var dateTo = filterDateTo.value;
-
-    return allPosts.filter(function (post) {
-      if (keyword && post.title.toLowerCase().indexOf(keyword) === -1) return false;
-      if (tag && (post.tags || []).indexOf(tag) === -1) return false;
-      if (dateFrom && post.date < dateFrom) return false;
-      if (dateTo && post.date > dateTo) return false;
+  // ── 筛选 ──────────────────────────────────
+  function filtered() {
+    var kw = filterKeyword.value.trim().toLowerCase();
+    var tg = filterTag.value;
+    var df = filterDateFrom.value;
+    var dt = filterDateTo.value;
+    return allPosts.filter(function (p) {
+      if (kw && p.title.toLowerCase().indexOf(kw) === -1) return false;
+      if (tg && (p.tags||[]).indexOf(tg) === -1) return false;
+      if (df && p.date < df) return false;
+      if (dt && p.date > dt) return false;
       return true;
     });
   }
 
-  function renderPosts() {
-    var filtered = getFilteredPosts();
-    manageCount.textContent = '共 ' + filtered.length + ' 篇';
+  // ── 渲染 ──────────────────────────────────
+  function render() {
+    var posts = filtered();
+    manageCount.textContent = '共 ' + posts.length + ' 篇';
     manageList.style.display = 'block';
 
-    if (filtered.length === 0) {
+    if (!manageTbody) return;
+
+    if (posts.length === 0) {
       manageTbody.innerHTML = '';
       manageEmpty.style.display = 'block';
     } else {
       manageEmpty.style.display = 'none';
-      manageTbody.innerHTML = filtered.map(function (post) {
-        var tagsHtml = (post.tags || []).map(function (t) {
-          return '<span class="tag tag-sm">' + escapeHtml(t) + '</span>';
+      manageTbody.innerHTML = posts.map(function (p) {
+        var tagHtml = (p.tags||[]).map(function (t) {
+          return '<span class="tag tag-sm">' + esc(t) + '</span>';
         }).join(' ');
+        var slug = p.name.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/\.md$/, '');
+        var link = '/' + p.date.replace(/-/g, '/') + '/' + slug + '/';
         return '<tr>' +
-          '<td><a href="/' + post.date.replace(/-/g, '/') + '/' + post.name.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace(/\.md$/, '') + '/" target="_blank" class="post-link">' + escapeHtml(post.title) + '</a></td>' +
-          '<td class="col-date">' + escapeHtml(post.date) + '</td>' +
-          '<td>' + (tagsHtml || '—') + '</td>' +
+          '<td><a href="' + link + '" target="_blank" class="post-link">' + esc(p.title) + '</a></td>' +
+          '<td class="col-date">' + esc(p.date) + '</td>' +
+          '<td>' + (tagHtml || '—') + '</td>' +
           '<td class="col-actions">' +
-            '<button class="btn btn-sm btn-secondary btn-edit" data-path="' + escapeHtml(post.path) + '">✏️ 编辑</button>' +
-            '<button class="btn btn-sm btn-danger-outline btn-delete" data-path="' + escapeHtml(post.path) + '" data-title="' + escapeHtml(post.title) + '">🗑 删除</button>' +
-          '</td>' +
-          '</tr>';
+            '<button class="btn btn-sm btn-secondary btn-edit" data-path="' + esc(p.path) + '">✏️</button> ' +
+            '<button class="btn btn-sm btn-danger-outline btn-delete" data-path="' + esc(p.path) + '" data-title="' + esc(p.title) + '">🗑</button>' +
+          '</td></tr>';
       }).join('');
     }
-
-    // 绑定事件
-    bindRowEvents();
+    bind();
   }
 
-  function bindRowEvents() {
-    // 编辑按钮 - 跳转到编辑器
-    manageTbody.querySelectorAll('.btn-edit').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        window.location.href = '/editor/?edit=' + encodeURIComponent(btn.dataset.path);
+  function bind() {
+    if (!manageTbody) return;
+    manageTbody.querySelectorAll('.btn-edit').forEach(function (b) {
+      b.addEventListener('click', function () {
+        window.location.href = '/editor/?edit=' + encodeURIComponent(b.dataset.path);
       });
     });
-
-    // 编辑元信息按钮 - 弹出模态框（改为双击或右键... 不，让我加一个单独的编辑元信息按钮）
-    // 实际上：编辑 = 跳转编辑器编辑全文；元信息编辑可以放在行内
-    // 让我简化：编辑按钮直接跳转编辑器
-
-    // 删除按钮
-    manageTbody.querySelectorAll('.btn-delete').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        openDeleteModal(btn.dataset.path, btn.dataset.title);
+    manageTbody.querySelectorAll('.btn-delete').forEach(function (b) {
+      b.addEventListener('click', function () {
+        openDel(b.dataset.path, b.dataset.title);
       });
     });
   }
 
-  // ── 删除文章 ──────────────────────────────
-  function openDeleteModal(path, title) {
+  // ── 删除 ──────────────────────────────────
+  function openDel(path, title) {
     currentDelete = { path: path };
     deleteTitle.textContent = title;
     deleteStatus.textContent = '';
@@ -275,46 +237,31 @@
     btnConfirmDelete.textContent = '确认删除';
   }
 
-  function closeDeleteModal() {
-    deleteModal.style.display = 'none';
-    currentDelete = null;
-  }
+  function closeDel() { deleteModal.style.display = 'none'; currentDelete = null; }
 
   btnConfirmDelete.addEventListener('click', function () {
     if (!currentDelete) return;
     var post = allPosts.find(function (p) { return p.path === currentDelete.path; });
-    if (!post) {
-      deleteStatus.textContent = '❌ 找不到该文章';
-      deleteStatus.className = 'publish-status error';
-      return;
-    }
-
+    if (!post) { deleteStatus.innerHTML = '❌ 找不到该文章'; deleteStatus.className = 'publish-status error'; return; }
     btnConfirmDelete.disabled = true;
-    btnConfirmDelete.textContent = '⏳ 删除中...';
+    btnConfirmDelete.textContent = '⏳';
     deleteStatus.textContent = '';
 
-    var url = 'https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME + '/contents/' + post.path;
-    apiRequest(url, {
+    api('https://api.github.com/repos/' + REPO_OWNER + '/' + REPO_NAME + '/contents/' + post.path, {
       method: 'DELETE',
-      body: JSON.stringify({
-        message: '🗑 删除文章：' + post.title,
-        sha: post.sha,
-        branch: BRANCH
-      })
-    }).then(function (result) {
-      if (result.status === 200) {
-        deleteStatus.textContent = '✅ 已删除';
-        deleteStatus.className = 'publish-status success';
-        // 从列表中移除
+      body: JSON.stringify({ message: '🗑 删除：' + post.title, sha: post.sha, branch: BRANCH })
+    }).then(function (r) {
+      if (r.ok) {
+        deleteStatus.textContent = '✅ 已删除'; deleteStatus.className = 'publish-status success';
         allPosts = allPosts.filter(function (p) { return p.path !== post.path; });
-        renderPosts();
-        setTimeout(closeDeleteModal, 800);
+        render();
+        setTimeout(closeDel, 800);
       } else {
-        deleteStatus.textContent = '❌ 删除失败（HTTP ' + result.status + '）：' + (result.data.message || '');
+        deleteStatus.textContent = '❌ 失败 HTTP ' + r.status + ': ' + (r.data.message||'');
         deleteStatus.className = 'publish-status error';
       }
-    }).catch(function (err) {
-      deleteStatus.textContent = '❌ 网络错误：' + err.message;
+    }).catch(function (e) {
+      deleteStatus.textContent = '❌ ' + e.message;
       deleteStatus.className = 'publish-status error';
     }).finally(function () {
       btnConfirmDelete.disabled = false;
@@ -322,44 +269,31 @@
     });
   });
 
-  btnCancelDelete.addEventListener('click', closeDeleteModal);
+  btnCancelDelete.addEventListener('click', closeDel);
+  deleteModal.addEventListener('click', function (e) { if (e.target === deleteModal) closeDel(); });
 
-  // 点击模态框外部关闭
-  deleteModal.addEventListener('click', function (e) {
-    if (e.target === deleteModal) closeDeleteModal();
+  // ── 事件 ──────────────────────────────────
+  var filterTimer;
+  filterKeyword.addEventListener('input', function () {
+    clearTimeout(filterTimer);
+    filterTimer = setTimeout(render, 250);
   });
+  filterTag.addEventListener('change', render);
+  filterDateFrom.addEventListener('change', render);
+  filterDateTo.addEventListener('change', render);
+  btnRefresh.addEventListener('click', load);
 
-  // ── 筛选事件 ──────────────────────────────
-  var filterTimeout;
-  function debounceFilter() {
-    clearTimeout(filterTimeout);
-    filterTimeout = setTimeout(renderPosts, 250);
+  // ── 工具 ──────────────────────────────────
+  function esc(s) {
+    var d = document.createElement('div');
+    d.appendChild(document.createTextNode(s));
+    return d.innerHTML;
   }
-
-  filterKeyword.addEventListener('input', debounceFilter);
-  filterTag.addEventListener('change', renderPosts);
-  filterDateFrom.addEventListener('change', renderPosts);
-  filterDateTo.addEventListener('change', renderPosts);
-  btnRefresh.addEventListener('click', loadPosts);
-
-  // ── 帮助函数 ──────────────────────────────
-  function escapeHtml(str) {
-    var div = document.createElement('div');
-    div.appendChild(document.createTextNode(str));
-    return div.innerHTML;
-  }
-
-  function showError(msg) {
-    manageError.innerHTML = msg;
-    manageError.style.display = 'block';
+  function showErr(msg) {
+    if (manageError) { manageError.innerHTML = msg; manageError.style.display = 'block'; }
   }
 
   // ── 启动 ──────────────────────────────────
-  if (!getToken()) {
-    showError('未配置 Token，请先通过 <code>?token=xxx</code> 参数访问此页面');
-    manageLoading.style.display = 'none';
-    return;
-  }
-  loadPosts();
+  load();
 
 })();
