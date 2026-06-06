@@ -90,4 +90,4 @@ title: 文章管理
   </div>
 </div>
 
-<script src="{{ '/assets/js/manage.js' | relative_url }}"></script>
+<script src="{{ '/assets/js/manage.js' | relative_url }}?v=2"></script>
