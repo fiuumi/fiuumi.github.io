@@ -633,6 +633,260 @@ main {
 }
 
 /* ============================================
+   编辑器页面
+   ============================================ */
+.editor-page {
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+.editor-section {
+  margin-bottom: 24px;
+}
+
+.editor-section details {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0;
+}
+
+.editor-section details summary {
+  padding: 14px 20px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+  user-select: none;
+}
+
+.editor-section .settings-body {
+  padding: 0 20px 20px;
+}
+
+.settings-hint {
+  font-size: 0.88rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 16px;
+  line-height: 1.7;
+}
+
+.settings-hint a {
+  font-weight: 600;
+}
+
+/* 输入行 */
+.input-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+.input-group label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.input-group input,
+.input-group textarea {
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: var(--color-surface);
+  color: var(--color-text);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.input-group input:focus,
+.input-group textarea:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+/* 按钮 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all var(--transition-fast);
+}
+
+.btn-primary {
+  background: var(--color-accent);
+  color: #fff;
+  border-color: var(--color-accent);
+}
+.btn-primary:hover {
+  background: var(--color-accent-hover);
+}
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+.btn-secondary:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.btn-ghost {
+  background: none;
+  color: var(--color-text-muted);
+  border: 1px solid transparent;
+}
+.btn-ghost:hover {
+  color: #e53e3e;
+  border-color: rgba(229, 62, 62, 0.3);
+}
+
+/* Token 状态 */
+.token-status {
+  margin-top: 10px;
+  font-size: 0.85rem;
+}
+
+/* 编辑器主体 */
+.editor-main .EasyMDEContainer {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.editor-main .editor-toolbar {
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-code-bg);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.editor-main .editor-toolbar button {
+  color: var(--color-text-secondary) !important;
+}
+.editor-main .editor-toolbar button:hover,
+.editor-main .editor-toolbar button.active {
+  background: var(--color-accent-soft);
+  color: var(--color-accent) !important;
+  border-color: var(--color-accent) !important;
+}
+
+.editor-main .CodeMirror {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 0.92rem;
+  line-height: 1.7;
+  min-height: 420px;
+}
+
+.editor-main .CodeMirror-cursor {
+  border-left-color: var(--color-accent);
+}
+
+.editor-main .CodeMirror-selected {
+  background: var(--color-accent-soft) !important;
+}
+
+.editor-main .editor-preview {
+  background: var(--color-surface);
+  padding: 24px;
+}
+
+.editor-main .editor-statusbar {
+  border-top: 1px solid var(--color-border);
+  background: var(--color-code-bg);
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  padding: 6px 14px;
+}
+
+/* 暗色模式下编辑器适配 */
+[data-theme="dark"] .editor-main .editor-toolbar {
+  background: #2a2a2e;
+}
+[data-theme="dark"] .editor-main .CodeMirror {
+  background: #1e1e24;
+  color: #e4e4e7;
+}
+[data-theme="dark"] .editor-main .CodeMirror-gutters {
+  background: #1e1e24;
+  border-right-color: #333338;
+}
+[data-theme="dark"] .editor-main .editor-toolbar i.separator {
+  border-left-color: #444;
+  border-right-color: #333;
+}
+
+/* 发布按钮区 */
+.editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.editor-actions .btn-primary {
+  padding: 12px 28px;
+  font-size: 1rem;
+}
+
+/* 状态提示 */
+.publish-status {
+  font-size: 0.9rem;
+}
+
+.publish-status.success {
+  color: #16a34a;
+}
+.publish-status.error {
+  color: #dc2626;
+}
+.publish-status.warning {
+  color: #d97706;
+}
+.publish-status.info {
+  color: var(--color-text-muted);
+}
+
+.publish-status a {
+  font-weight: 600;
+}
+
+[data-theme="dark"] .publish-status.success {
+  color: #4ade80;
+}
+[data-theme="dark"] .publish-status.error {
+  color: #f87171;
+}
+[data-theme="dark"] .publish-status.warning {
+  color: #fbbf24;
+}
+
+/* ============================================
    打印样式
    ============================================ */
 @media print {
