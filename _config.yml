@@ -1,0 +1,29 @@
+title: "FiuuMi's Blog"
+description: "思考与记录"
+author: "FiuuMi"
+lang: zh-CN
+timezone: Asia/Shanghai
+
+# 网址
+url: "https://fiuumi.xyz"
+baseurl: ""                              # 项目站点填 /repo-name，用户站点留空
+
+# 构建设置
+markdown: kramdown
+permalink: /:year/:month/:day/:title/
+
+# 分页（每页 10 篇文章）
+paginate: 10
+paginate_path: "/page:num/"
+
+# 默认 Front Matter
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+
+# 排除文件
+exclude:
+  - README.md
+  - .gitignore
